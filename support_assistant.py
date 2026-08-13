@@ -1,23 +1,36 @@
-# Version 0.1
+# Version 0.2
+
+import os
+from dotenv import load_dotenv
+from openai import OpenAI
+
+load_dotenv()
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 print("AI IT Support Assistant")
 print("-----------------------")
 
 problem = input("Describe your IT problem: ")
 
-print("\nYou reported:")
-print(problem)
+response = client.responses.create(
+    model="gpt-5-mini",
+    input=f"""
+You are an IT troubleshooting assistant.
 
-print("\nInitial analysis:")
+Analyze the following user-reported problem:
 
-if "wifi" in problem.lower() or "wi-fi" in problem.lower() or "internet" in problem.lower():
-    print("Category: Network")
-    print("Suggested first step: Check network connectivity and DNS.")
-    print("Category: Network")
-   
-elif "password" in problem.lower() or "login" in problem.lower():
-    print("Category: Authentication")
-    print("Suggested first step: Verify credentials and account status.")
-else:
-    print("Category: General IT Support")
-    print("Suggested first step: Gather additional information about the problem.")
+{problem}
+
+Return:
+1. Category
+2. Likely cause
+3. Troubleshooting steps
+4. Escalation guidance
+
+Keep the response concise and practical.
+"""
+)
+
+print("\nAI Analysis:")
+print(response.output_text)
