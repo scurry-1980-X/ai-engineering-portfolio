@@ -18,17 +18,29 @@ response = client.responses.create(
     input=f"""
 You are an IT troubleshooting assistant.
 
-Analyze the following user-reported problem:
+Analyze this user-reported problem:
 
 {problem}
 
-Return:
-1. Category
-2. Likely cause
-3. Troubleshooting steps
-4. Escalation guidance
+Respond using exactly this format:
 
-Keep the response concise and practical.
+Category:
+<one concise category>
+
+Likely Cause:
+<one or two concise likely causes>
+
+Troubleshooting Steps:
+1. <step>
+2. <step>
+3. <step>
+4. <step>
+5. <step>
+
+Escalation Guidance:
+<when or why this issue should be escalated>
+
+Keep the response concise, practical, and suitable for a technical support engineer.
 """
 )
 
