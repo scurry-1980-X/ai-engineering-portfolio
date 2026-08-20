@@ -1,4 +1,4 @@
-# Version 0.5
+# Version 0.6
 
 import os
 import threading
@@ -11,8 +11,11 @@ from openai import OpenAI
 
 
 APP_TITLE = "AI IT Support Assistant"
-APP_SIZE = "850x720"
+APP_SIZE = "875x760"
 MODEL_NAME = "gpt-5-mini"
+
+TROUBLESHOOTING_MODE = "Troubleshooting Analysis"
+TICKET_MODE = "Ticket Notes"
 
 CATEGORIES = [
     "Network",
@@ -34,41 +37,7 @@ DISCLAIMER_TEXT = (
     "by a qualified technician before being applied in a production environment."
 )
 
-
-def load_client():
-    """Load the OpenAI API key and return an OpenAI client."""
-    load_dotenv()
-    api_key = os.getenv("OPENAI_API_KEY")
-
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY was not found. Check your .env file.")
-
-    return OpenAI(api_key=api_key)
-
-
-def build_category_list():
-    """Format the approved category list for the prompt."""
-    return "\n".join(f"- {category}" for category in CATEGORIES)
-
-
-def build_prompt(problem):
-    """Build the AI troubleshooting prompt."""
-    category_list = build_category_list()
-
-    return f"""
-You are an AI IT troubleshooting assistant.
-
-Analyze the user's issue and select the single best category
-from the approved categories below.
-
-Approved categories:
-{category_list}
-
-User issue:
-{problem}
-
-Respond using exactly this format:
-
+TROUBLESHOOTING_FORMAT = """
 Category:
 <choose one category from the approved list>
 
@@ -90,16 +59,106 @@ Troubleshooting Steps:
 
 Escalation Guidance:
 <when or why this issue should be escalated>
+""".strip()
 
-Keep the response concise, practical, and suitable for a technical support engineer.
+TICKET_FORMAT = """
+Ticket Summary:
+<one concise sentence summarizing the user-reported issue>
+
+Impact:
+<who or what is affected>
+
+Urgency:
+<Low, Medium, High, or Critical>
+
+Priority:
+<Low, Medium, High, or Critical>
+
+Category:
+<choose one category from the approved list>
+
+Subcategory:
+<short subcategory such as Credentials, DNS, MFA, Hardware Failure, Performance, Phishing, etc.>
+
+Recommended Assignment Group:
+<suggest a likely support team such as Help Desk, Network Team, Security Team, Microsoft 365 Admin, Endpoint Support, or Escalation Team>
+
+Likely Cause:
+<one or two concise likely causes>
+
+Technician Notes:
+<brief notes a technician could place in a support ticket>
+
+Troubleshooting Steps:
+1. <step>
+2. <step>
+3. <step>
+4. <step>
+5. <step>
+
+Escalation Guidance:
+<when or why this issue should be escalated>
 """.strip()
 
 
-def analyze_problem(client, problem):
+def load_client():
+    """Load the OpenAI API key and return an OpenAI client."""
+    load_dotenv()
+    api_key = os.getenv("OPENAI_API_KEY")
+
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY was not found. Check your .env file.")
+
+    return OpenAI(api_key=api_key)
+
+
+def build_category_list():
+    """Format the approved category list for the prompt."""
+    return "\n".join(f"- {category}" for category in CATEGORIES)
+
+
+def get_response_format(output_mode):
+    """Return the correct response format for the selected output mode."""
+    if output_mode == TICKET_MODE:
+        return TICKET_FORMAT
+
+    return TROUBLESHOOTING_FORMAT
+
+
+def build_prompt(problem, output_mode):
+    """Build the AI prompt for the selected output mode."""
+    category_list = build_category_list()
+    response_format = get_response_format(output_mode)
+
+    return f"""
+You are an AI IT troubleshooting assistant.
+
+Analyze the user's issue and select the single best category
+from the approved categories below.
+
+Approved categories:
+{category_list}
+
+User issue:
+{problem}
+
+Output mode:
+{output_mode}
+
+Respond using exactly this format:
+
+{response_format}
+
+Keep the response concise, practical, and suitable for a technical support engineer.
+Do not ask follow-up questions. Make a best-effort support assessment from the information provided.
+""".strip()
+
+
+def analyze_problem(client, problem, output_mode):
     """Send the user issue to OpenAI and return the AI analysis."""
     response = client.responses.create(
         model=MODEL_NAME,
-        input=build_prompt(problem),
+        input=build_prompt(problem, output_mode),
     )
 
     return response.output_text
@@ -114,6 +173,8 @@ class TroubleshootingApp:
         self.root.geometry(APP_SIZE)
 
         self.client = None
+        self.output_mode = tk.StringVar(value=TROUBLESHOOTING_MODE)
+
         self.problem_input = None
         self.result_output = None
         self.analyze_button = None
@@ -124,6 +185,7 @@ class TroubleshootingApp:
         """Create the full GUI layout."""
         self.create_title_section()
         self.create_problem_section()
+        self.create_output_mode_section()
         self.create_button_section()
         self.create_result_section()
 
@@ -138,7 +200,7 @@ class TroubleshootingApp:
 
         subtitle_label = tk.Label(
             self.root,
-            text="Classify IT issues, suggest troubleshooting steps, and provide escalation guidance.",
+            text="Classify IT issues, suggest troubleshooting steps, and create ticket-style notes.",
             font=("Arial", 11),
         )
         subtitle_label.pack(pady=(0, 8))
@@ -147,7 +209,7 @@ class TroubleshootingApp:
             self.root,
             text=DISCLAIMER_TEXT,
             font=("Arial", 10, "italic"),
-            wraplength=760,
+            wraplength=780,
             justify="center",
         )
         disclaimer_label.pack(pady=(0, 12))
@@ -168,6 +230,35 @@ class TroubleshootingApp:
             font=("Arial", 11),
         )
         self.problem_input.pack(fill="x", padx=20, pady=(5, 10))
+
+    def create_output_mode_section(self):
+        """Create the output mode selector."""
+        mode_frame = tk.LabelFrame(
+            self.root,
+            text="Output Mode",
+            font=("Arial", 11, "bold"),
+            padx=10,
+            pady=6,
+        )
+        mode_frame.pack(fill="x", padx=20, pady=(0, 10))
+
+        troubleshooting_radio = tk.Radiobutton(
+            mode_frame,
+            text="Troubleshooting Analysis",
+            variable=self.output_mode,
+            value=TROUBLESHOOTING_MODE,
+            font=("Arial", 11),
+        )
+        troubleshooting_radio.grid(row=0, column=0, sticky="w", padx=(0, 25))
+
+        ticket_radio = tk.Radiobutton(
+            mode_frame,
+            text="Ticket Notes",
+            variable=self.output_mode,
+            value=TICKET_MODE,
+            font=("Arial", 11),
+        )
+        ticket_radio.grid(row=0, column=1, sticky="w")
 
     def create_button_section(self):
         """Create the Analyze, Clear, and Save buttons."""
@@ -224,6 +315,7 @@ class TroubleshootingApp:
     def handle_analyze(self):
         """Start analysis in a background thread so the GUI stays responsive."""
         problem = self.get_problem_text()
+        output_mode = self.get_output_mode()
 
         if not problem:
             messagebox.showwarning(
@@ -232,23 +324,23 @@ class TroubleshootingApp:
             )
             return
 
-        self.set_result_text("Analyzing issue...")
+        self.set_result_text(f"Analyzing issue in {output_mode} mode...")
         self.set_analyze_button_state(tk.DISABLED)
 
         worker = threading.Thread(
             target=self.run_analysis,
-            args=(problem,),
+            args=(problem, output_mode),
             daemon=True,
         )
         worker.start()
 
-    def run_analysis(self, problem):
+    def run_analysis(self, problem, output_mode):
         """Run the OpenAI request outside the main GUI thread."""
         try:
             if self.client is None:
                 self.client = load_client()
 
-            analysis = analyze_problem(self.client, problem)
+            analysis = analyze_problem(self.client, problem, output_mode)
             self.root.after(0, self.set_result_text, analysis)
 
         except Exception as error:
@@ -267,6 +359,7 @@ class TroubleshootingApp:
         """Save the current issue and AI analysis to a text file."""
         problem = self.get_problem_text()
         analysis = self.get_result_text()
+        output_mode = self.get_output_mode()
 
         if not analysis:
             messagebox.showwarning(
@@ -288,7 +381,7 @@ class TroubleshootingApp:
             return
 
         try:
-            self.write_analysis_file(file_path, problem, analysis)
+            self.write_analysis_file(file_path, problem, analysis, output_mode)
             messagebox.showinfo(
                 "Analysis Saved",
                 "The analysis was saved successfully.",
@@ -300,14 +393,15 @@ class TroubleshootingApp:
                 f"The analysis could not be saved:\n\n{error}",
             )
 
-    def write_analysis_file(self, file_path, problem, analysis):
+    def write_analysis_file(self, file_path, problem, analysis, output_mode):
         """Write the issue and AI analysis to a text file."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         with open(file_path, "w", encoding="utf-8") as file:
             file.write("AI IT Support Assistant Analysis\n")
             file.write("================================\n\n")
-            file.write(f"Timestamp: {timestamp}\n\n")
+            file.write(f"Timestamp: {timestamp}\n")
+            file.write(f"Output Mode: {output_mode}\n\n")
             file.write(f"{DISCLAIMER_TEXT}\n\n")
             file.write("User Issue:\n")
             file.write(problem)
@@ -321,6 +415,10 @@ class TroubleshootingApp:
     def get_result_text(self):
         """Return the text from the result output box."""
         return self.result_output.get("1.0", tk.END).strip()
+
+    def get_output_mode(self):
+        """Return the selected output mode."""
+        return self.output_mode.get()
 
     def set_result_text(self, text):
         """Replace the result output text."""
