@@ -1,4 +1,4 @@
-# AI Engineering Portfolio
+git add README.md# AI Engineering Portfolio
 ## Version History
 
 ### v0.1 — Command-Line Prototype
@@ -24,3 +24,8 @@
 - Improved code organization.
 - Added timestamp support for saved analysis files.
 - Improved GUI responsiveness during analysis.
+
+### v0.6 — Ticket Output Mode
+- Added selectable output modes for Troubleshooting Analysis and Ticket Notes.
+- Added ticket-style fields including Ticket Summary, Impact, Urgency, Priority, Recommended Assignment Group, Technician Notes, and Escalation Guidance.
+- Updated saved analysis files to include the selected output mode.
